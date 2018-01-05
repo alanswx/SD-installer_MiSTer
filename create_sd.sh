@@ -33,8 +33,8 @@ case $yn in
 
            echo "Partitioning..."
            (sfdisk $1 <<-__END__
-              502M,+,0xB
-              2M,500M,0x83
+              1026M,+,0xB
+              2M,1024M,0x83
               1M,1M,0xA2
 __END__
 ) || exit 0
@@ -93,6 +93,8 @@ __END__
            tar cvf ${SRCDIR}/addon.tar -C ${SRCDIR}/.addon .
 	fi
 	tar xfp ${SRCDIR}/addon.tar --warning=no-timestamp -C ${DSTDIR} || exit 0
+	echo "Copying web modifications..."
+	tar xfzp ${SRCDIR}/web.tar.gz --warning=no-timestamp -C ${DSTDIR} || exit 0
 	mkdir -p ${DSTDIR}/media/fat || exit 0
 	echo "/dev/mmcblk0p1 /media/fat auto defaults,sync,nofail 0 0" >>${DSTDIR}/etc/fstab
 	sed 's/getty/agetty/g' -i ${DSTDIR}/etc/inittab
