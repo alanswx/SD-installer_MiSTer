@@ -31,11 +31,25 @@ case $yn in
            echo "Erasing of first 64MB of card..."
            dd if=/dev/zero of=$1 bs=1M count=64 || exit 0
 
+           # get the size of the card
+           cardsize=`sfdisk -s ${1}`
+           # turn it into M (MiB) 
+           let cardsize=$cardsize/1024
+           
+           #cardsize=`sfdisk -l -uS ${1} | head -1 | cut -d, -f2 | cut -f2 -d\ `
+           echo "Cardsize: ${cardsize}M"
+           # shrink the partition by 3M - we need 1 at the beginning, 1 at the end, and 1 for the uboot
+           let partitionsize=${cardsize}-3
+           echo "Partitionsize: $partitionsize"
+           # start the a2 partition 2M from the end
+           let a2start=$cardsize-2
+           echo "a2start: $a2start"
            echo "Partitioning..."
-           (sfdisk $1 <<-__END__
-              1026M,+,0xB
-              2M,1024M,0x83
-              1M,1M,0xA2
+           #echo 1M,${partitionsize}M,0x07
+           #echo ${a2start}M,1M,0xA2
+           (sfdisk  $1 <<-__END__
+              1M,${partitionsize}M,0x07
+              ${a2start}M,1M,0xA2
 __END__
 ) || exit 0
 	sleep 3
@@ -55,7 +69,7 @@ __END__
 	   exit 0
 	fi
 
-	if [ ! -e $1 ] || [ ! -e ${1}3 ] || [ ! -e ${1}2 ] || [ ! -e ${1}1 ] ; then
+	if [ ! -e $1 ] ||  [ ! -e ${1}2 ] || [ ! -e ${1}1 ] ; then
 	   echo "Specified device doesn't look like correct SD card"
 	   exit 0
 	fi
@@ -64,71 +78,20 @@ __END__
 	echo "Unmounting some partitions (errors are ok here)..."
 	umount ${DSTDIR}
 
-	echo "Formatting Linux partition..."
-	mkfs.ext4 -L rootfs ${1}2 || exit 0
-	echo ""
+	echo "Formatting exfat partition..."
+        mkfs.exfat ${1}1
 
 	echo "Copying U-Boot loader..."
-	dd if=${SRCDIR}/u-boot-with-spl.sfp of=${1}3
+	dd if=${SRCDIR}/files/linux/uboot.img of=${1}2
 
-	echo "Mounting Linux partition..."
+	echo "Mounting exfat partition..."
 	if [ ! -d ${DSTDIR} ]; then
 	   mkdir -p ${DSTDIR} || exit 0
 	fi
-	mount ${1}2 ${DSTDIR} || exit 0
+	mount ${1}1 ${DSTDIR} || exit 0
 
-	echo "Copying main rootfs files..."
-	tar xfp ${SRCDIR}/rootfs.tar.gz --warning=no-timestamp -C ${DSTDIR} || exit 0
-
-	echo "Copying kernel modules rootfs files..."
-	tar xfp ${SRCDIR}/modules.tar.gz --strip-components=2 --warning=no-timestamp -C ${DSTDIR}/lib || exit 0
-
-	echo "Copying devices firmwares..."
-	mkdir -p ${DSTDIR}/lib/firmware || exit 0
-	tar xfp ${SRCDIR}/firmware.tar.gz --warning=no-timestamp -C ${DSTDIR}/lib/firmware || exit 0
-
-	echo "Copying additional modifications..."
-	if [ -d ${SRCDIR}/.addon ]; then
-	   [ -f ${SRCDIR}/addon.tar ] && rm -f ${SRCDIR}/addon.tar
-           tar cvf ${SRCDIR}/addon.tar -C ${SRCDIR}/.addon .
-	fi
-	tar xfp ${SRCDIR}/addon.tar --warning=no-timestamp -C ${DSTDIR} || exit 0
-	echo "Copying web modifications..."
-	tar xfzp ${SRCDIR}/web.tar.gz --warning=no-timestamp -C ${DSTDIR} || exit 0
-	mkdir -p ${DSTDIR}/media/fat || exit 0
-	echo "/dev/mmcblk0p1 /media/fat auto defaults,sync,nofail 0 0" >>${DSTDIR}/etc/fstab
-	sed 's/getty/agetty/g' -i ${DSTDIR}/etc/inittab
-	sed 's/115200//g' -i ${DSTDIR}/etc/inittab
-	sed '/::sysinit:\/bin\/mount \-a/a ::sysinit:\/etc\/resync\ \&' -i ${DSTDIR}/etc/inittab
-	sed '/::sysinit:\/bin\/mount \-a/a ::sysinit:\/media\/fat\/MiSTer\ \&' -i ${DSTDIR}/etc/inittab
-	sed '/::sysinit:\/bin\/mount \-t proc proc \/proc/a ::sysinit:\/etc\/irqoncpu0' -i ${DSTDIR}/etc/inittab
-	sed '/PATH/ s/$/:\/media\/fat/' -i ${DSTDIR}/etc/profile
-
-cat >> ${DSTDIR}/etc/profile <<- __EOF__
-
-export LC_ALL=en_US.UTF-8
-resize >/dev/null
-mount -o remount,rw /
-
-__EOF__
-
-	echo "Copying kernel..."
-	mkdir -p ${DSTDIR}/boot || exit 0
-	cp -f -r ${SRCDIR}/zImage ${DSTDIR}/boot/zImage || exit 0
-	cp -f -r ${SRCDIR}/socfpga.dtb ${DSTDIR}/boot/socfpga.dtb || exit 0
-
-	echo "Copying this installer..."
-	mkdir -p ${DSTDIR}/media/rootfs || exit 0
-	mkdir -p ${DSTDIR}/make_sd || exit 0
-	cp -f ${SRCDIR}/* ${DSTDIR}/make_sd || exit 0
-
-	echo "Fixing permissions..."
-	chown -R root:root ${DSTDIR} || exit 0
-	sync
-	sleep 3
-
-	echo "Unmounting Linux partition..."
-	umount ${DSTDIR} || exit 0
+	echo "Copying files"
+	cp -f -r ${SRCDIR}/files/* ${DSTDIR}/ || exit 0
 
 	echo "Done!"
 	echo ""
