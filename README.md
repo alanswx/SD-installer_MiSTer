@@ -1,4 +1,25 @@
-This makes an SD Card (currently the old way) for the MiSTer
+# Linux MiSTer SD Card Creator
+
+This makes an SD Card - the new way for MiSTer on Linux
+
+
+* download the latest MiSTer installer rar from https://github.com/MiSTer-devel/SD-Installer-Win64_MiSTer
+* unrar the file
+```
+ unrar x release_20180523.rar
+```
+* create the SD card
+
+Replace /dev/sd... with the device that has your SD card:
+
+```
+sudo ./create_sd.sh /dev/sd...
+```
+
+
+# WIP - web package maker
+
+This will make a version of the installer that has web packages so we can run a python webserver on the mister.
 
 This also has a script to install needed packages on an raspberry pi (pi_install.sh)
 Then on the pi, you can run the make_webtar.sh script and it will tar up libraries, python, and some utilities that are needed to run the web code on the MiSTer.
