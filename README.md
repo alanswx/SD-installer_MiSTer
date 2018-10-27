@@ -16,6 +16,7 @@ Replace /dev/sd... with the device that has your SD card:
 sudo ./create_sd.sh /dev/sd...
 ```
 
+* copy the latest images and MiSTer binary to the SD card
 
 # WIP - web package maker
 
