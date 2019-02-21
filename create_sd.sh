@@ -2,6 +2,10 @@
 
 echo ""
 
+DIR=$PWD
+SRCDIR=${DIR}
+DSTDIR=/media/rootfs
+
 if [[ $EUID -ne 0 ]]; then
    echo "This script requires root rights. Quiting..."
    echo ""
@@ -18,15 +22,30 @@ if [ ! -e "$1" ]; then
    exit 0
 fi
 
+if [ ! -e "" ]; then
+   echo "Couldn't find SD card"
+   exit 0
+fi
+
+if [ -z `which mkfs.exfat` ]; then
+   echo "Please install exfat-utils"
+   exit 0
+fi
+
+if [ ! -e "$[SRCDIR]/files" ]; then
+   echo "Couldn't find MiSTer files directory"
+   exit 0
+fi
+
 read -p "Do you wish to partition this SD card? " yn
 case $yn in
    [Yy]* )
            echo ""
            echo "Unmounting some partitions (errors are ok here)..."
            umount ${1}
-           umount ${1}1
-           umount ${1}2
-           umount ${1}3
+           umount ${1}*1
+           umount ${1}*2
+           umount ${1}*3
            echo ""
            echo "Erasing of first 64MB of card..."
            dd if=/dev/zero of=$1 bs=1M count=64 || exit 0
@@ -54,22 +73,16 @@ __END__
 ) || exit 0
 	sleep 3
 
-	DIR=$PWD
-	SRCDIR=${DIR}
-	DSTDIR=/media/rootfs
+	P1=
+	P2=
 
-	if [[ $EUID -ne 0 ]]; then
-	   echo "This script requires root rights. Quiting..."
-	   echo ""
-	   exit 0
-	fi
-
-	if [ -z $1 ]; then
-	   echo "No SD device specified"
-	   exit 0
-	fi
-
-	if [ ! -e $1 ] ||  [ ! -e ${1}2 ] || [ ! -e ${1}1 ] ; then
+	if [ -e $1 ] && [ -e ${1}2 ] && [ -e ${1}1 ] ; then
+	   P1=${1}1
+	   P2=${1}2
+	elif [ -e $1 ] && [ -e ${1}p2 ] && [ -e ${1}p1 ] ; then
+	   P1=${1}p1
+	   P2=${1}p2
+	else
 	   echo "Specified device doesn't look like correct SD card"
 	   exit 0
 	fi
@@ -79,19 +92,21 @@ __END__
 	umount ${DSTDIR}
 
 	echo "Formatting exfat partition..."
-        mkfs.exfat ${1}1
+        mkfs.exfat $P1
 
 	echo "Copying U-Boot loader..."
-	dd if=${SRCDIR}/files/linux/uboot.img of=${1}2
+	dd if=${SRCDIR}/files/linux/uboot.img of=$P2
 
 	echo "Mounting exfat partition..."
 	if [ ! -d ${DSTDIR} ]; then
 	   mkdir -p ${DSTDIR} || exit 0
 	fi
-	mount ${1}1 ${DSTDIR} || exit 0
+	mount $P1 ${DSTDIR} || exit 0
 
 	echo "Copying files"
 	cp -f -r ${SRCDIR}/files/* ${DSTDIR}/ || exit 0
+	sync
+	umount ${DSTDIR}
 
 	echo "Done!"
 	echo ""
